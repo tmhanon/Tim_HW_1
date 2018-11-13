@@ -22,7 +22,7 @@ library(AER)
 
 First we load the data and look at some summary statistics.
 
-```{r load data and summarize}
+```{r load data and summarize, results='asis'}
 data <- read.dta13("ARE231_data.dta")
 
 stargazer(data)
