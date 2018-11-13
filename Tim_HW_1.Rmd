@@ -1,0 +1,30 @@
+---
+title: "Tim_HW_1"
+author: "Tristan Hanon & Shanchao Wang"
+date: "November 13, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readstata13)
+library(tidyverse)
+library(stargazer)
+library(broom)
+library(ggplot2)
+library(rms)
+library(sandwich)
+library(lmtest)
+library(AER)
+```
+
+\section{Examining the Data}
+
+First we load the data and look at some summary statistics.
+
+```{r load data and summarize}
+data <- read.dta13("ARE231_data.dta")
+
+stargazer(data)
+```
+
