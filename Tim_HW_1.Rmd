@@ -1,12 +1,12 @@
 ---
-title: "Tim_HW_1"
-author: "Tristan Hanon & Shanchao Wang"
+title: "ARE 231 Homework 1"
+author: "Tristan Hanon"
 date: "November 13, 2018"
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = F)
 library(readstata13)
 library(tidyverse)
 library(stargazer)
@@ -16,15 +16,233 @@ library(rms)
 library(sandwich)
 library(lmtest)
 library(AER)
+library(systemfit)
 ```
 
 \section{Examining the Data}
 
-First we load the data and look at some summary statistics.
+The data at hand include household expenditure on various categories, prices of goods in those categories, and some demographic characteristics. Table \ref{tab:sum} presents summary statistics. In examining these values, the first notable aspect of the data is that all of the expenditure categories have observations with zero expenditure. While a zero observations in some categories could make sense, like tobacco for households without any smokers, there are other categories for which this seems less likely, such as food at home. 
+
+There are also some strange values for net income for both the head of the household and the spouse. We can see that the minimum value for \texttt{hnety} is $-5,532$ and the minimum value for \texttt{snety} is $-15,000$. Without knowing more about the survey procedure it is hard to know whether negative values may represent something for income, but it seems safe to assume that these may have been miscoded somehow. 
+
+Outside of these two aspects of the data that is difficult to accept, the rest of the summary statistics seem to be unsurprising. Also worth noting is that out of the 14,996 total observations, only 9,838 records had values for \texttt{snety} and \texttt{sage}, suggesting that there are 5,158 records with only one adult in the household. 
 
 ```{r load data and summarize, results='asis'}
 data <- read.dta13("ARE231_data.dta")
 
-stargazer(data)
+stargazer(data, header = F,
+          title = "Summary Statistics",
+          label = "tab:sum")
+```
+
+\section{Exploring Expenditure on Food at Home}
+
+Plotting logged expenditure on food at home against logged total expenditure indicates an upward sloping, relatively linear, relationship. In fact, including a linear regression line in the plot seems to support the claim that the relationship is linear. Since the relationship is upward sloping, this suggests food at home is a normal good, which is of course consistent with expectations. Additionally, since the data is represented linearly, this suggests that food at home is neither a necessity nor a luxury. 
+
+```{r food at home and total expenditure, results='asis'}
+# Create total expenditure:
+data <- data %>%
+  mutate(xtot = rowSums(select(., starts_with("x"))))
+
+# Plot logged food at home against logged total expenditure:
+data %>%
+  filter(xfath != 0) %>%
+  ggplot(aes(x = log(xtot), y = log(xfath))) +
+    geom_point(shape = 1) +
+    geom_smooth(method = "lm") +
+    theme_bw()
+
+# Regress to find elasticity:
+fath_elast1 <- lm(xfath ~ xtot, data = data)
+fath_elast2 <- lm(xfath ~ xtot + I(xtot^2), data = data)
+```
+
+We could also attempt to estimate the income elasticity of men's clothing in a similar way. If we used a similar procedure to the above, 
+
+```{r mens clothing}
+# Plot logged men's clothing against logged total expenditure:
+data %>%
+  filter(xmclth != 0) %>%
+  ggplot(aes(x = log(xtot), y = log(xmclth))) +
+    geom_point(shape = 1) +
+    geom_smooth(method = "lm") +
+    theme_bw()
+
+# Regress to find elasticity:
+mclth_reg1 <- lm(xmclth ~ xtot, data = data)
+mclth_reg2 <- lm(xmclth ~ xtot + I(xtot^2), data = data)
+```
+
+\section{Estimating a Cobb-Douglas Function}
+
+
+
+\section{Budget Shares and a Stone Price Index}
+
+
+
+```{r construct budget shares and price index, results='asis'}
+# Budget Shares:
+data <- data %>%
+  mutate(
+    wfath = xfath / xtot,
+    wrest = xrest / xtot,
+    whhop = xhhop / xtot,
+    wcaruse = xcaruse / xtot,
+    wtran = xtran / xtot,
+    wcare = xcare / xtot,
+    wrecr = xrecr / xtot,
+    wtob = xtob / xtot,
+    walc = xalc / xtot,
+    wwclth = xwclth / xtot,
+    wmclth = xmclth / xtot,
+    wkclth = xkclth / xtot,
+    ind_fath = wfath * log(pfath),
+    ind_rest = wrest * log(prest),
+    ind_hhop = whhop * log(phhop),
+    ind_caruse = wcaruse * log(pcaruse),
+    ind_tran = wtran * log(ptran),
+    ind_care = wcare * log(pcare),
+    ind_recr = wrecr * log(precr),
+    ind_tob = wtob * log(ptob),
+    ind_alc = walc * log(palc),
+    ind_wclth = wwclth * log(pwclth),
+    ind_mclth = wmclth * log(pmclth),
+    ind_kclth = wkclth * log(pkclth),
+    index = exp(rowSums(select(., starts_with("ind_")))),
+    realx = xtot / index
+  )
+
+stargazer(
+  data %>%
+    group_by(time, region) %>%
+    summarise(Mean = mean(index),
+              SD = sd(index),
+              Min = min(index),
+              Max = max(index)),
+  summary = F, header = F)
+```
+
+\section{Working-Leser Share Equation}
+
+
+
+```{r working-leser, results='asis'}
+# First construct the formula:
+prices <- colnames(select(data, starts_with("p")))
+prices
+
+# Run Regression
+wl_reg <- lm(wfath ~ log(pfath) + log(prest) + log(phhop) + log(pcare) + log(ptran) + log(pcaruse) + log(precr) + log(palc) + log(ptob) + log(pwclth) + log(pmclth) + log(pkclth) + log(realx),
+             data = data)
+stargazer(wl_reg, header = F)
+
+# RESET Test
+resettest(wl_reg)
+```
+
+\section{Composite Commodities and Prices}
+
+```{r composite categories}
+data <- data %>%
+  mutate(
+    xtransport = xtran + xcaruse,
+    xserv = xhhop + xcare,
+    xvices = xalc + xtob,
+    xcloth = xmclth + xwclth + xkclth,
+    wtransport = xtransport / xtot,
+    wserv = xserv / xtot,
+    wvices = xvices / xtot,
+    wcloth = xcloth / xtot
+  )
+data <- data %>%
+  group_by(time, region) %>%
+  mutate(
+    wtran_bar = mean(wtran),
+    wcaruse_bar = mean(wcaruse),
+    whhop_bar = mean(whhop),
+    wcare_bar = mean(wcare),
+    walc_bar = mean(walc),
+    wtob_bar = mean(wtob),
+    wmclth_bar = mean(wmclth),
+    wwclth_bar = mean(wwclth),
+    wkclth_bar = mean(wkclth)
+  )
+data <- data %>%
+  mutate(
+    ptransport = exp((wtran_bar / (wtran_bar + wcaruse_bar)) * log(ptran) + (wcaruse_bar / (wtran_bar + wcaruse_bar)) * log(pcaruse)),
+    pserv = exp((whhop_bar / (whhop_bar + wcare_bar)) * log(phhop) + (wcare_bar / (whhop_bar + wcare_bar)) * log(pcare)),
+    pvices = exp((walc_bar / (walc_bar + wtob_bar)) * log(palc) + (wtob_bar / (walc_bar + wtob_bar)) * log(ptob)),
+    pcloth = exp((wmclth_bar / (wmclth_bar + wwclth_bar + wkclth_bar)) * log(pmclth) + (wwclth_bar / (wmclth_bar + wwclth_bar + wkclth_bar)) * log(pwclth) + (wwclth_bar / (wmclth_bar + wwclth_bar + wkclth_bar)) * log(pkclth))
+  )
+
+data %>%
+  group_by(time, region) %>%
+  summarise(ptransport = mean(ptransport),
+            pserv = mean(pserv),
+            pvices = mean(pvices),
+            pcloth = mean(pcloth))
+```
+
+```{r seven ols, results='asis'}
+# fath
+fath_reg <- lm(wfath ~ ad + kids + log(pfath) + log(prest) + log(pserv) + log(ptransport) + log(precr) + log(pvices) + log(pcloth) + log(xtot / index), data = data)
+
+# rest
+rest_reg <- lm(wrest ~ ad + kids + log(pfath) + log(prest) + log(pserv) + log(ptransport) + log(precr) + log(pvices) + log(pcloth) + log(xtot / index), data = data)
+
+# serv
+serv_reg <- lm(wserv ~ ad + kids + log(pfath) + log(prest) + log(pserv) + log(ptransport) + log(precr) + log(pvices) + log(pcloth) + log(xtot / index), data = data)
+
+# transport
+transport_reg <- lm(wtransport ~ ad + kids + log(pfath) + log(prest) + log(pserv) + log(ptransport) + log(precr) + log(pvices) + log(pcloth) + log(xtot / index), data = data)
+
+# recr
+recr_reg <- lm(wrecr ~ ad + kids + log(pfath) + log(prest) + log(pserv) + log(ptransport) + log(precr) + log(pvices) + log(pcloth) + log(xtot / index), data = data)
+
+# vices
+vices_reg <- lm(wvices ~ ad + kids + log(pfath) + log(prest) + log(pserv) + log(ptransport) + log(precr) + log(pvices) + log(pcloth) + log(xtot / index), data = data)
+
+# cloth
+cloth_reg <- lm(wcloth ~ ad + kids + log(pfath) + log(prest) + log(pserv) + log(ptransport) + log(precr) + log(pvices) + log(pcloth) + log(xtot / index), data = data)
+
+# Display results
+stargazer(fath_reg, rest_reg, serv_reg, transport_reg, recr_reg, vices_reg, cloth_reg,
+          header = F,
+          omit.stat = "ser")
+```
+
+```{r check adding up}
+all_coefs <- as.tibble(tidy(fath_reg)$term)
+all_coefs$fath <- tidy(fath_reg)$estimate
+all_coefs$rest <- tidy(rest_reg)$estimate
+all_coefs$serv <- tidy(serv_reg)$estimate
+all_coefs$transport <- tidy(transport_reg)$estimate
+all_coefs$recr <- tidy(recr_reg)$estimate
+all_coefs$vices <- tidy(vices_reg)$estimate
+all_coefs$cloth <- tidy(cloth_reg)$estimate
+round(rowSums(all_coefs[, -1]), 3)
+```
+
+\section{Seemingly Unrelated Regression}
+
+```{r sur}
+# Create formulas
+for (i in c("fath", "rest", "serv", "transport", "recr", "vices", "cloth")) {
+  name <- paste0(i, "_form")
+  form <- as.formula(paste(paste0("w", i), "~", "ad + kids + log(pfath) + log(prest) + log(pserv) + log(ptransport) + log(precr) + log(pvices) + log(pcloth) + log(xtot / index)"))
+  assign(name, form)
+}
+
+# Run SUR with Vices
+sur <- systemfit(list(fath = fath_form,
+                      rest = rest_form,
+                      serv = serv_form,
+                      transport = transport_form,
+                      recr = recr_form,
+                      vices = vices_form,
+                      cloth = cloth_form),
+                 data = data)
+summary(sur)
 ```
 
